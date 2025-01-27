@@ -1,23 +1,32 @@
-import logo from './logo.svg';
+import React, { useState, useEffect } from "react";
+import * as d3 from "d3";
 import './App.css';
 
 function App() {
+
+  const [countryCarbonData, setCountryCarbonData] = useState(null);
+  const [regionCarbonData, setRegionCarbonData] = useState(null);
+  const [northiceExtentData, setNorthiceExtentData] = useState(null);
+  const [southiceExtentData, setSouthiceExtentData] = useState(null);
+
+  useEffect(() => {
+    d3.csv("../public/datasets/set1/country_dimension.csv").then((data) => {
+      setCountryCarbonData(data);
+    });
+    d3.csv("../public/datasets/set1/region_dimension.csv").then((data) => {
+      setRegionCarbonData(data);
+    });
+    d3.csv("../public/datasets/set2/north_sea_ice_extent.csv").then((data) => {
+      setNorthiceExtentData(data);
+    });
+    d3.csv("../public/datasets/set2/south_sea_ice_extent.csv").then((data) => {
+      setSouthiceExtentData(data);
+    });
+  }, []);
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+
     </div>
   );
 }
