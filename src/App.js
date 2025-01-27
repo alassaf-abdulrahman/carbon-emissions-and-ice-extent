@@ -102,6 +102,14 @@ function App() {
         ])
         .range([height, 0]);
 
+      const yAxis = d3.axisLeft(y);
+      g.append("g")
+        .attr("transform", `translate(20, 0)`)
+        .call(yAxis)
+        .selectAll(".tick text")
+        .style("font-size", "12px")
+        .style("fill", "#666");
+
       // Draw axes (existing code remains the same)
 
       // Draw lines based on view mode
@@ -111,18 +119,21 @@ function App() {
 
       if (iceExtentView === "comparison") {
         g.append("path")
+          .attr("transform", `translate(20, 0)`)
           .datum(northIceExtentData)
           .attr("fill", "none")
           .attr("stroke", "blue")
           .attr("d", lineGenerator);
 
         g.append("path")
+          .attr("transform", `translate(20, 0)`)
           .datum(southIceExtentData)
           .attr("fill", "none")
           .attr("stroke", "red")
           .attr("d", lineGenerator);
       } else {
         g.append("path")
+          .attr("transform", `translate(20, 0)`)
           .datum(overallIceExtentData)
           .attr("fill", "none")
           .attr("stroke", "green")
@@ -136,12 +147,14 @@ function App() {
       if (iceExtentView === "comparison") {
         // North legend item
         legend.append("rect")
+          .attr("transform", `translate(20, 0)`)
           .attr("width", 12)
           .attr("height", 12)
           .attr("fill", "blue")
           .attr("y", -40);
 
         legend.append("text")
+          .attr("transform", `translate(20, 0)`)
           .attr("x", 20)
           .attr("y", -30)
           .text("North Ice Extent")
@@ -149,12 +162,14 @@ function App() {
 
         // South legend item
         legend.append("rect")
+          .attr("transform", `translate(20, 0)`)
           .attr("width", 12)
           .attr("height", 12)
           .attr("fill", "red")
           .attr("y", -15);
 
         legend.append("text")
+          .attr("transform", `translate(20, 0)`)
           .attr("x", 20)
           .attr("y", -5)
           .text("South Ice Extent")
@@ -162,12 +177,14 @@ function App() {
       } else {
         // Overall legend item
         legend.append("rect")
+          .attr("transform", `translate(20, 0)`)
           .attr("width", 12)
           .attr("height", 12)
           .attr("fill", "green")
           .attr("y", -40);
 
         legend.append("text")
+          .attr("transform", `translate(20, 0)`)
           .attr("x", 20)
           .attr("y", -30)
           .text("Overall Ice Extent")
@@ -180,7 +197,7 @@ function App() {
         .tickFormat(d3.format("d"));
 
       g.append("g")
-        .attr("transform", `translate(0,${height})`)
+        .attr("transform", `translate(20,${height})`)
         .call(xAxis)
         .selectAll("text")
         .style("text-anchor", "end")
@@ -191,6 +208,7 @@ function App() {
         .style("fill", "#666");
 
       g.append("text")
+        .attr("transform", `translate(20, 0)`)
         .attr("transform", `translate(${width / 2}, ${height + margin.bottom - 10})`)
         .style("text-anchor", "middle")
         .text("Year");
