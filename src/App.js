@@ -7,10 +7,13 @@ function App() {
   const [regionCarbonData, setRegionCarbonData] = useState(null);
   const [northIceExtentData, setNorthIceExtentData] = useState(null);
   const [southIceExtentData, setSouthIceExtentData] = useState(null);
+  const [overallIceExtentData, setOverallIceExtentData] = useState(null);
+
 
   const [selectedYear, setSelectedYear] = useState(1990);
   const [viewBy, setViewBy] = useState("Country"); // "Country" or "Region"
   const [metric, setMetric] = useState("Kilotons of Co2"); // "Kilotons of Co2" or "Metric Tons Per Capita"
+  const [iceExtentView, setIceExtentView] = useState("comparison"); // "comparison" or "overall"
 
   useEffect(() => {
     d3.csv("/datasets/set1/country_dimension.csv").then((data) => {
@@ -44,95 +47,165 @@ function App() {
       });
       setSouthIceExtentData(data);
     });
+
+    d3.csv("/datasets/set2/overall_sea_ice_extent.csv").then((data) => {
+      data.forEach((d) => {
+        d.Year = +d.Year; // Convert to number
+        d["Extent 10^6 sq km"] = +d["Extent 10^6 sq km"]; // Ensure column name matches CSV
+      });
+      setOverallIceExtentData(data);
+    });
   }, []);
 
   useEffect(() => {
-    if (northIceExtentData && southIceExtentData) {
-      const drawIceExtentChart = () => {
-        const svgWidth = 800;
-        const svgHeight = 400;
-        const margin = { top: 20, right: 30, bottom: 50, left: 50 };
-        const width = svgWidth - margin.left - margin.right;
-        const height = svgHeight - margin.top - margin.bottom;
+    const drawIceExtentChart = () => {
+      if (!northIceExtentData || !southIceExtentData || !overallIceExtentData) return;
+      // Clear previous chart
+      d3.select("#ice-extent-chart").select("svg").remove();
 
-        d3.select("#ice-extent-chart").select("svg").remove();
+      // Chart setup code remains the same until the line drawing...
+      const svgWidth = 800;
+      const svgHeight = 400;
+      const margin = { top: 20, right: 30, bottom: 50, left: 50 };
+      const width = svgWidth - margin.left - margin.right;
+      const height = svgHeight - margin.top - margin.bottom;
 
-        const svg = d3
-          .select("#ice-extent-chart")
-          .append("svg")
-          .attr("width", svgWidth)
-          .attr("height", svgHeight);
+      const svg = d3.select("#ice-extent-chart")
+        .append("svg")
+        .attr("width", svgWidth)
+        .attr("height", svgHeight);
 
-        const g = svg
-          .append("g")
-          .attr("transform", `translate(${margin.left},${margin.top})`);
+      const g = svg.append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
 
-        const x = d3
-          .scaleLinear()
-          .domain(
-            d3.extent(northIceExtentData, (d) => +d.Year).map((d) => +d)
-          )
-          .range([0, width]);
+      // Update x-axis domain to consider all datasets
+      const allYears = [
+        ...northIceExtentData.map(d => d.Year),
+        ...southIceExtentData.map(d => d.Year),
+        ...overallIceExtentData.map(d => d.Year)
+      ];
 
-        const y = d3
-          .scaleLinear()
-          .domain([
-            0,
-            d3.max([
-              ...northIceExtentData.map((d) => +d["Extent 10^6 sq km"]),
-              ...southIceExtentData.map((d) => +d["Extent 10^6 sq km"]),
-            ]),
-          ])
-          .range([height, 0]);
+      const x = d3.scaleLinear()
+        .domain([d3.min(allYears), d3.max(allYears)])
+        .range([0, width]);
 
-        const xAxis = d3.axisBottom(x).tickFormat(d3.format("d"));
-        const yAxis = d3.axisLeft(y);
+      // Update y-axis domain based on view mode
+      const y = d3.scaleLinear()
+        .domain([
+          0,
+          iceExtentView === "comparison"
+            ? d3.max([
+              ...northIceExtentData.map(d => d["Extent 10^6 sq km"]),
+              ...southIceExtentData.map(d => d["Extent 10^6 sq km"])
+            ])
+            : d3.max(overallIceExtentData.map(d => d["Extent 10^6 sq km"]))
+        ])
+        .range([height, 0]);
 
-        g.append("g")
-          .attr("transform", `translate(0,${height})`)
-          .call(xAxis)
-          .append("text")
-          .attr("x", width / 2)
-          .attr("y", 40)
-          .text("Year")
-          .attr("fill", "black");
+      // Draw axes (existing code remains the same)
 
-        g.append("g").call(yAxis).append("text").text("Extent (10^6 sq km)");
+      // Draw lines based on view mode
+      const lineGenerator = d3.line()
+        .x(d => x(d.Year))
+        .y(d => y(d["Extent 10^6 sq km"]));
 
-        const lineGenerator = d3
-          .line()
-          .x((d) => x(+d.Year))
-          .y((d) => y(+d["Extent 10^6 sq km"]));
-
+      if (iceExtentView === "comparison") {
         g.append("path")
           .datum(northIceExtentData)
           .attr("fill", "none")
           .attr("stroke", "blue")
-          .attr("stroke-width", 2)
           .attr("d", lineGenerator);
 
         g.append("path")
           .datum(southIceExtentData)
           .attr("fill", "none")
           .attr("stroke", "red")
-          .attr("stroke-width", 2)
           .attr("d", lineGenerator);
+      } else {
+        g.append("path")
+          .datum(overallIceExtentData)
+          .attr("fill", "none")
+          .attr("stroke", "green")
+          .attr("d", lineGenerator);
+      }
 
-        g.append("text")
-          .attr("x", width - 100)
-          .attr("y", 20)
+      // Update legend based on view mode
+      const legend = g.append("g")
+        .attr("transform", `translate(${width - 140}, 30)`); // Adjust position as needed
+
+      if (iceExtentView === "comparison") {
+        // North legend item
+        legend.append("rect")
+          .attr("width", 12)
+          .attr("height", 12)
           .attr("fill", "blue")
-          .text("North Ice Extent");
+          .attr("y", -40);
 
-        g.append("text")
-          .attr("x", width - 100)
-          .attr("y", 40)
+        legend.append("text")
+          .attr("x", 20)
+          .attr("y", -30)
+          .text("North Ice Extent")
+          .style("font-size", "12px");
+
+        // South legend item
+        legend.append("rect")
+          .attr("width", 12)
+          .attr("height", 12)
           .attr("fill", "red")
-          .text("South Ice Extent");
-      };
-      drawIceExtentChart();
-    }
-  }, [northIceExtentData, southIceExtentData]);
+          .attr("y", -15);
+
+        legend.append("text")
+          .attr("x", 20)
+          .attr("y", -5)
+          .text("South Ice Extent")
+          .style("font-size", "12px");
+      } else {
+        // Overall legend item
+        legend.append("rect")
+          .attr("width", 12)
+          .attr("height", 12)
+          .attr("fill", "green")
+          .attr("y", -40);
+
+        legend.append("text")
+          .attr("x", 20)
+          .attr("y", -30)
+          .text("Overall Ice Extent")
+          .style("font-size", "12px");
+      }
+
+      // X-axis with rotated labels
+      const xAxis = d3.axisBottom(x)
+        .ticks(15)
+        .tickFormat(d3.format("d"));
+
+      g.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(xAxis)
+        .selectAll("text")
+        .style("text-anchor", "end")
+        .attr("dx", "-0.5em")
+        .attr("dy", "0.15em")
+        .attr("transform", "rotate(-45)")
+        .style("font-size", "12px")
+        .style("fill", "#666");
+
+      g.append("text")
+        .attr("transform", `translate(${width / 2}, ${height + margin.bottom - 10})`)
+        .style("text-anchor", "middle")
+        .text("Year");
+
+      // Y-axis label
+      g.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("y", -margin.left + 15)
+        .attr("x", -height / 2)
+        .style("text-anchor", "middle")
+        .text("Extent (10^6 sq km)");
+    };
+
+    drawIceExtentChart();
+  }, [northIceExtentData, southIceExtentData, overallIceExtentData, iceExtentView]);
 
   useEffect(() => {
     if (selectedYear && countryCarbonData && regionCarbonData) {
@@ -142,13 +215,9 @@ function App() {
             ? countryCarbonData.filter((d) => +d.Year === +selectedYear)
             : regionCarbonData.filter((d) => +d.Year === +selectedYear);
 
-        console.log("Filtered Data:", data);
-
         const sortedData = data
           .sort((a, b) => +b[metric] - +a[metric])
           .slice(0, 10);
-
-        console.log("Sorted Data:", sortedData);
 
         const svgWidth = 800;
         const svgHeight = 400;
@@ -192,6 +261,19 @@ function App() {
           .attr("width", (d) => x(+d[metric]))
           .attr("height", y.bandwidth())
           .attr("fill", "steelblue");
+
+        g.append("text")
+          .attr("transform", `translate(${width / 2}, ${height + margin.bottom - 10})`)
+          .style("text-anchor", "middle")
+          .text(metric); // Dynamic label based on selected metric
+
+        // Y-axis label
+        g.append("text")
+          .attr("transform", "rotate(-90)")
+          .attr("y", -margin.left + 15)
+          .attr("x", -height / 2)
+          .style("text-anchor", "middle")
+          .text(viewBy); // "Country" or "Region"
       };
       drawBarChart();
     }
@@ -199,7 +281,20 @@ function App() {
 
   return (
     <div className="App">
-      <div id="ice-extent-chart"></div>
+      <div id="ice-extent-chart">
+        <div className="chart-controls">
+          <label>
+            Ice Extent View:
+            <select
+              value={iceExtentView}
+              onChange={(e) => setIceExtentView(e.target.value)}
+            >
+              <option value="comparison">North/South Comparison</option>
+              <option value="overall">Overall Ice Extent</option>
+            </select>
+          </label>
+        </div>
+      </div>
 
       <div>
         <label>
