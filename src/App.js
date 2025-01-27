@@ -8,12 +8,13 @@ function App() {
   const [northIceExtentData, setNorthIceExtentData] = useState(null);
   const [southIceExtentData, setSouthIceExtentData] = useState(null);
   const [overallIceExtentData, setOverallIceExtentData] = useState(null);
-
+  const [eraData, setEraData] = useState(null);
 
   const [selectedYear, setSelectedYear] = useState(1990);
   const [viewBy, setViewBy] = useState("Country"); // "Country" or "Region"
   const [metric, setMetric] = useState("Kilotons of Co2"); // "Kilotons of Co2" or "Metric Tons Per Capita"
   const [iceExtentView, setIceExtentView] = useState("comparison"); // "comparison" or "overall"
+  const [selectedEra, setSelectedEra] = useState(null);
 
   useEffect(() => {
     d3.csv("/datasets/set1/country_dimension.csv").then((data) => {
@@ -297,24 +298,176 @@ function App() {
     }
   }, [selectedYear, viewBy, metric, countryCarbonData, regionCarbonData]);
 
+  useEffect(() => {
+    if (!regionCarbonData) return;
+
+    // Create 5-year eras
+    const years = regionCarbonData.map(d => d.Year);
+    const minYear = Math.min(...years);
+    const maxYear = Math.max(...years);
+
+    const eras = [];
+    for (let start = minYear; start <= maxYear; start += 5) {
+      const end = start + 4;
+      if (end > maxYear) break;
+      eras.push({
+        label: `${start}-${end}`,
+        start,
+        end
+      });
+    }
+
+    // Calculate sums for each era
+    const regions = [...new Set(regionCarbonData.map(d => d.Region))];
+    const eraSums = eras.map(era => {
+      const eraData = regionCarbonData.filter(d =>
+        d.Year >= era.start && d.Year <= era.end
+      );
+
+      const sums = {};
+      regions.forEach(region => {
+        sums[region] = d3.sum(
+          eraData.filter(d => d.Region === region),
+          d => d["Kilotons of Co2"]
+        );
+      });
+
+      return { ...era, ...sums };
+    });
+
+    // Calculate averages and percent differences
+    const processedData = eraSums.map(era => {
+      const regionValues = Object.entries(era)
+        .filter(([key]) => !["label", "start", "end"].includes(key))
+        .map(([_, value]) => value);
+
+      const average = d3.mean(regionValues);
+      const regionsData = {};
+
+      Object.entries(era).forEach(([key, value]) => {
+        if (!["label", "start", "end"].includes(key)) {
+          regionsData[key] = {
+            sum: value,
+            percentDiff: ((value - average) / average) * 100
+          };
+        }
+      });
+
+      return {
+        label: era.label,
+        average,
+        regions: regionsData
+      };
+    });
+
+    setEraData(processedData);
+    if (processedData.length > 0) {
+      setSelectedEra(processedData[0].label);
+    }
+  }, [regionCarbonData]);
+
+  useEffect(() => {
+    if (!eraData || !selectedEra) return;
+
+    const currentEra = eraData.find(d => d.label === selectedEra);
+    const regionsData = Object.entries(currentEra.regions)
+      .map(([region, data]) => ({
+        region,
+        ...data
+      }))
+      .sort((a, b) => b.percentDiff - a.percentDiff);
+
+    // Clear previous chart
+    d3.select("#deviation-chart").select("svg").remove();
+
+    // Chart dimensions
+    const svgWidth = 800;
+    const svgHeight = 400;
+    const margin = { top: 20, right: 30, bottom: 50, left: 100 };
+    const width = svgWidth - margin.left - margin.right;
+    const height = svgHeight - margin.top - margin.bottom;
+
+    // Create SVG
+    const svg = d3.select("#deviation-chart")
+      .append("svg")
+      .attr("width", svgWidth)
+      .attr("height", svgHeight);
+
+    const g = svg.append("g")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    // Create scales
+    const x = d3.scaleLinear()
+      .domain([d3.min(regionsData, d => d.percentDiff), d3.max(regionsData, d => d.percentDiff)])
+      .range([0, width])
+      .nice();
+
+    const y = d3.scaleBand()
+      .domain(regionsData.map(d => d.region))
+      .range([0, height])
+      .padding(0.1);
+
+    // Create axes
+    g.append("g")
+      .call(d3.axisLeft(y));
+
+    g.append("g")
+      .attr("transform", `translate(0,${height})`)
+      .call(d3.axisBottom(x));
+
+    // Create bars
+    g.selectAll("rect")
+      .data(regionsData)
+      .enter()
+      .append("rect")
+      .attr("y", d => y(d.region))
+      .attr("height", y.bandwidth())
+      .attr("x", d => d.percentDiff < 0 ? x(d.percentDiff) : x(0))
+      .attr("width", d => Math.abs(x(d.percentDiff) - x(0)))
+      .attr("fill", d => d.percentDiff >= 0 ? "#4daf4a" : "#e41a1c");
+
+    // Add zero line
+    g.append("line")
+      .attr("x1", x(0))
+      .attr("x2", x(0))
+      .attr("y1", 0)
+      .attr("y2", height)
+      .attr("stroke", "black")
+      .attr("stroke-dasharray", "2,2");
+
+    // Add labels
+    g.append("text")
+      .attr("transform", `translate(${width / 2}, ${height + margin.bottom - 10})`)
+      .style("text-anchor", "middle")
+      .text("Percent Difference from Average (%)");
+
+    g.append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", -margin.left + 15)
+      .attr("x", -height / 2)
+      .style("text-anchor", "middle")
+      .text("Region");
+  }, [eraData, selectedEra]);
+
   return (
     <div className="App">
+      <div className="chart-controls">
+        <label>
+          Ice Extent View:
+          <select
+            value={iceExtentView}
+            onChange={(e) => setIceExtentView(e.target.value)}
+          >
+            <option value="comparison">North/South Comparison</option>
+            <option value="overall">Overall Ice Extent</option>
+          </select>
+        </label>
+      </div>
       <div id="ice-extent-chart">
-        <div className="chart-controls">
-          <label>
-            Ice Extent View:
-            <select
-              value={iceExtentView}
-              onChange={(e) => setIceExtentView(e.target.value)}
-            >
-              <option value="comparison">North/South Comparison</option>
-              <option value="overall">Overall Ice Extent</option>
-            </select>
-          </label>
-        </div>
+
       </div>
 
-      <div>
+      <div className="chart-controls">
         <label>
           Select Year:
           <select
@@ -349,6 +502,26 @@ function App() {
       </div>
 
       <div id="carbon-bar-chart"></div>
+
+      <div className="chart-controls">
+        <label>
+          Select Era:
+          <select
+            value={selectedEra || ""}
+            onChange={(e) => setSelectedEra(e.target.value)}
+          >
+            {eraData && eraData.map(era => (
+              <option key={era.label} value={era.label}>
+                {era.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div id="deviation-chart">
+
+      </div>
     </div>
   );
 }
