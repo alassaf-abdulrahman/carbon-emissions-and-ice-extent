@@ -21,7 +21,7 @@ function App() {
       setCountryCarbonData(data);
     });
 
-    d3.csv("../public/datasets/set1/region_dimension.csv").then((data) => {
+    d3.csv("/datasets/set1/region_dimension.csv").then((data) => {
       data.forEach((d) => {
         d.Year = +d.Year;
         d["Kilotons of Co2"] = +d["Kilotons of Co2"];
@@ -142,9 +142,13 @@ function App() {
             ? countryCarbonData.filter((d) => +d.Year === +selectedYear)
             : regionCarbonData.filter((d) => +d.Year === +selectedYear);
 
+        console.log("Filtered Data:", data);
+
         const sortedData = data
           .sort((a, b) => +b[metric] - +a[metric])
           .slice(0, 10);
+
+        console.log("Sorted Data:", sortedData);
 
         const svgWidth = 800;
         const svgHeight = 400;
