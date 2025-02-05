@@ -472,7 +472,7 @@ function App() {
           Select Year:
           <select
             onChange={(e) => setSelectedYear(e.target.value)}
-            defaultValue=""
+            defaultValue="1990"
           >
             <option value="" disabled>
               Choose Year
