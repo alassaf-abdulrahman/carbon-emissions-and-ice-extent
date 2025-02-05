@@ -213,7 +213,7 @@ function App() {
 
       g.append("text")
         .attr("transform", `translate(20, 0)`)
-        .attr("transform", `translate(${width / 2}, ${height + margin.bottom - 10})`)
+        .attr("transform", `translate(${width / 2}, ${height + margin.bottom})`)
         .style("text-anchor", "middle")
         .text("Year");
 
@@ -485,6 +485,11 @@ function App() {
 
     g.append("g").call(d3.axisLeft(y));
     g.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x));
+
+    g.append("text")
+      .attr("transform", `translate(${width / 2}, ${height + margin.bottom - 10})`)
+      .style("text-anchor", "middle")
+      .text("Kilotons of CO2");
 
     g.selectAll("rect")
       .data(data)
