@@ -10,11 +10,14 @@ function App() {
   const [overallIceExtentData, setOverallIceExtentData] = useState(null);
   const [eraData, setEraData] = useState(null);
 
-  const [selectedYear, setSelectedYear] = useState(1990);
+  const [selectedYear1, setSelectedYear1] = useState(1990);
   const [viewBy, setViewBy] = useState("Country"); // "Country" or "Region"
   const [metric, setMetric] = useState("Kilotons of Co2"); // "Kilotons of Co2" or "Metric Tons Per Capita"
   const [iceExtentView, setIceExtentView] = useState("comparison"); // "comparison" or "overall"
   const [selectedEra, setSelectedEra] = useState(null);
+  const [selectedCountry1, setSelectedCountry1] = useState("");
+  const [selectedCountry2, setSelectedCountry2] = useState("");
+  const [selectedYear2, setSelectedYear2] = useState(1990);
 
   useEffect(() => {
     d3.csv("/datasets/set1/country_dimension.csv").then((data) => {
@@ -227,12 +230,12 @@ function App() {
   }, [northIceExtentData, southIceExtentData, overallIceExtentData, iceExtentView]);
 
   useEffect(() => {
-    if (selectedYear && countryCarbonData && regionCarbonData) {
+    if (selectedYear1 && countryCarbonData && regionCarbonData) {
       const drawBarChart = () => {
         const data =
           viewBy === "Country"
-            ? countryCarbonData.filter((d) => +d.Year === +selectedYear)
-            : regionCarbonData.filter((d) => +d.Year === +selectedYear);
+            ? countryCarbonData.filter((d) => +d.Year === +selectedYear1)
+            : regionCarbonData.filter((d) => +d.Year === +selectedYear1);
 
         const sortedData = data
           .sort((a, b) => +b[metric] - +a[metric])
@@ -296,7 +299,7 @@ function App() {
       };
       drawBarChart();
     }
-  }, [selectedYear, viewBy, metric, countryCarbonData, regionCarbonData]);
+  }, [selectedYear1, viewBy, metric, countryCarbonData, regionCarbonData]);
 
   useEffect(() => {
     if (!regionCarbonData) return;
@@ -449,8 +452,82 @@ function App() {
       .text("Region");
   }, [eraData, selectedEra]);
 
+  useEffect(() => {
+    if (!countryCarbonData || !selectedCountry1 || !selectedCountry2) return;
+
+    const data = countryCarbonData.filter(
+      (d) => d.Year === selectedYear2 && (d.Country === selectedCountry1 || d.Country === selectedCountry2)
+    );
+
+    d3.select("#comparison-chart").select("svg").remove();
+
+    const svgWidth = 600;
+    const svgHeight = 400;
+    const margin = { top: 20, right: 30, bottom: 50, left: 100 };
+    const width = svgWidth - margin.left - margin.right;
+    const height = svgHeight - margin.top - margin.bottom;
+
+    const svg = d3.select("#comparison-chart")
+      .append("svg")
+      .attr("width", svgWidth)
+      .attr("height", svgHeight);
+
+    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const x = d3.scaleLinear()
+      .domain([0, d3.max(data, (d) => d["Kilotons of Co2"])])
+      .range([0, width]);
+
+    const y = d3.scaleBand()
+      .domain(data.map((d) => d.Country))
+      .range([0, height])
+      .padding(0.1);
+
+    g.append("g").call(d3.axisLeft(y));
+    g.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x));
+
+    g.selectAll("rect")
+      .data(data)
+      .enter()
+      .append("rect")
+      .attr("y", (d) => y(d.Country))
+      .attr("width", (d) => x(d["Kilotons of Co2"]))
+      .attr("height", y.bandwidth())
+      .attr("fill", "steelblue");
+  }, [selectedYear2, selectedCountry1, selectedCountry2, countryCarbonData]);
+
   return (
     <div className="App">
+      <div className="chart-controls">
+        <label>
+          Select Year:
+          <select value={selectedYear2} onChange={(e) => setSelectedYear2(+e.target.value)}>
+            {countryCarbonData && [...new Set(countryCarbonData.map((d) => d.Year))].map((year) => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Select Country 1:
+          <select value={selectedCountry1} onChange={(e) => setSelectedCountry1(e.target.value)}>
+            <option value="">Choose a Country</option>
+            {countryCarbonData && [...new Set(countryCarbonData.map((d) => d.Country))].map((country) => (
+              <option key={country} value={country}>{country}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Select Country 2:
+          <select value={selectedCountry2} onChange={(e) => setSelectedCountry2(e.target.value)}>
+            <option value="">Choose a Country</option>
+            {countryCarbonData && [...new Set(countryCarbonData.map((d) => d.Country))].map((country) => (
+              <option key={country} value={country}>{country}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div id="comparison-chart"></div>
+
       <div className="chart-controls">
         <label>
           Ice Extent View:
@@ -471,7 +548,7 @@ function App() {
         <label>
           Select Year:
           <select
-            onChange={(e) => setSelectedYear(e.target.value)}
+            onChange={(e) => setSelectedYear1(e.target.value)}
             defaultValue="1990"
           >
             <option value="" disabled>
@@ -519,9 +596,8 @@ function App() {
         </label>
       </div>
 
-      <div id="deviation-chart">
+      <div id="deviation-chart"></div>
 
-      </div>
     </div>
   );
 }
